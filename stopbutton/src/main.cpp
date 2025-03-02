@@ -147,15 +147,15 @@ HXC::thread<void> LEDThread([](){
   log_i("LEDThread start");
   pinMode(LEDPIN, OUTPUT);
   digitalWrite(LEDPIN, HIGH);
-  ledcAttachPin(LEDPIN, 3);
-  ledcSetup(0, 5000, 8);
+  ledcSetup(0, 5000, 8); // 初始化 LEDC 通道
+  ledcAttachPin(LEDPIN, 0); // 将 LEDPIN 附加到 LEDC 通道 0
   while(1){
     for(int i=0;i<255;i++){
-      ledcWrite(3,i);
+      ledcWrite(0, i); // 使用通道 0
       delay(5);
     }
     for(int i=0;i<255;i++){
-      ledcWrite(3,255-i);
+      ledcWrite(0, 255-i); // 使用通道 0
       delay(5);
     }
   }
