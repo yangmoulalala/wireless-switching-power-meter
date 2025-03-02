@@ -113,7 +113,7 @@ namespace Battery{
 }
 
 // 屏幕任务还没写完
-void screentask( void *pvParameters ) {
+HXC::thread<void> screentask( void *pvParameters ) {
   u8g2.begin();
 
   while (true){
@@ -144,6 +144,7 @@ void screentask( void *pvParameters ) {
 
 // LED任务,由于作者板子的LED坏了又不想修,所以这个LED任务只是个简单的闪烁
 HXC::thread<void> LEDThread([](){
+  log_i("LEDThread start");
   pinMode(LEDPIN, OUTPUT);
   digitalWrite(LEDPIN, HIGH);
   ledcAttachPin(LEDPIN, 3);
@@ -172,7 +173,8 @@ void setup()
   PowerCtrl::setup();
 
   // 屏幕任务还没写完
-  xTaskCreate(screentask, "screentask", 16384, NULL, 4, NULL);
+  // xTaskCreate(screentask, "screentask", 16384, NULL, 4, NULL);
+
 
   
   // 按下时关闭电源
@@ -196,5 +198,10 @@ void setup()
   // 请求功率计持续发送数据
   PowerCtrl::ctrl_send_data(/*continue=*/true,/*data rate=*/10);
 }
- 
-void loop() {}
+
+void loop() {
+  // log_i("battery_voltage: %f, quantity: %f",Battery::battery_voltage,Battery::quantity);
+  // delay(1000);
+  log_i("power_data: %d, %f, %f, %f, %f, %d",PowerCtrl::power_data.now_state,PowerCtrl::power_data.voltage,PowerCtrl::power_data.current,PowerCtrl::power_data.mah,PowerCtrl::power_data.mwh,PowerCtrl::power_data.runtime);
+  delay(1000);
+}

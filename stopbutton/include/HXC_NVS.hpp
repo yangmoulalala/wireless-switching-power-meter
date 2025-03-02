@@ -55,20 +55,30 @@ public:
     Value_type read(){
         if(!is_setup){setup();} // 如果未初始化，则先初始化
         if(is_read) return value; // 如果已经读取过，则直接返回缓存的值
+        
         size_t datalen = 0;
         esp_err_t err = nvs_get_blob(_handle, key.c_str(), NULL, &datalen); // 获取数据长度
-        if(err!=ESP_OK || datalen!=sizeof(Value_type)){
-            log_e("nvs_get_blob len fail: %s %s", key, nvs_error(err)); // 如果获取长度失败，记录错误信息
-            is_read=true;
-            return value; // 返回默认值
+        
+        // 如果是 NOT_FOUND 错误，静默返回默认值
+        if(err == ESP_ERR_NVS_NOT_FOUND) {
+            is_read = true;
+            return value;
         }
+        
+        // 对于其他错误或数据长度不匹配的情况，记录错误信息
+        if(err != ESP_OK || datalen != sizeof(Value_type)){
+            log_e("nvs_get_blob len fail: %s %s", key.c_str(), nvs_error(err));
+            is_read = true;
+            return value;
+        }
+        
         err = nvs_get_blob(_handle, key.c_str(), (void*)&value, &datalen); // 读取数据
         if(err){
-            log_e("nvs_get_blob fail: %s %s", key.c_str(), nvs_error(err)); // 如果读取失败，记录错误信息
-            return value; // 返回默认值
+            log_e("nvs_get_blob fail: %s %s", key.c_str(), nvs_error(err));
+            return value;
         }
-        is_read=true; // 标记为已读取
-        return value; // 返回读取的值
+        is_read = true;
+        return value;
     }
 
     // 重载赋值运算符，用于更新NVS中的数据
@@ -87,12 +97,24 @@ protected:
     // 静态方法，用于初始化NVS
     static void setup(){
         if(is_setup) return; // 如果已经初始化，则直接返回
-        auto err= nvs_open(NVS_NAME,NVS_READWRITE, &_handle); // 打开NVS命名空间
-        if(err!=ESP_OK){
-            log_e("nvs_open failed: %s", nvs_error(err)); // 如果打开失败，记录错误信息
+        
+        // 初始化 NVS
+        esp_err_t err = nvs_flash_init();
+        if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+            // NVS 分区被占用或版本不匹配时，擦除并重新初始化
+            ESP_ERROR_CHECK(nvs_flash_erase());
+            err = nvs_flash_init();
+        }
+        ESP_ERROR_CHECK(err);
+        
+        // 打开 NVS 命名空间
+        err = nvs_open(NVS_NAME, NVS_READWRITE, &_handle);
+        if(err != ESP_OK){
+            log_e("nvs_open failed: %s", nvs_error(err));
             return;
-        };
-        is_setup=true; // 标记为已初始化
+        }
+        
+        is_setup = true; // 标记为已初始化
     }
     String key; // 存储NVS中的key
     static uint32_t _handle; // 存储NVS的句柄

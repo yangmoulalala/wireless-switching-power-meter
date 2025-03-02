@@ -12,10 +12,11 @@
 //无线急停功率计
 namespace PowerCtrl{
     //NVS数据，存储配对的MAC地址
-    HXC::NVS_DATA<MAC_t>pair_mac("pair_mac",MAC_t(0XFF,0XFF,0XFF,0XFF,0XFF,0XFF));
+    HXC::NVS_DATA<MAC_t>pair_mac("pair_mac",MAC_t(0xFF,0xFF,0xFF,0xFF,0xFF,0xFF));
     void power_state_reciver(HXC_ESPNOW_data_pakage receive_data);
     static bool state = false;
     static bool is_new_data=false;
+    static bool is_paired = false;
     //功率数据结构
     struct Power_data_t{
         bool now_state;
@@ -30,8 +31,7 @@ namespace PowerCtrl{
     void send_pair_package(){
         uint8_t self_mac[6];
         WiFi.macAddress(self_mac);
-        esp_now_send_package("pair",self_mac,6,broadcastMacAddress);
-
+        esp_now_send_package("pair",self_mac,6,MAC_t(0xFF,0xFF,0xFF,0xFF,0xFF,0xFF));
     }
     //开启功率计输出
     void power_on(){
@@ -59,6 +59,7 @@ namespace PowerCtrl{
     }
     //控制功率计发送数据
     void ctrl_send_data(bool is_continue,int frc=0){
+        log_i("want send_data_ctrl");
         bool state = is_continue;
         int _frc = frc;
         uint8_t data[5];
@@ -68,19 +69,25 @@ namespace PowerCtrl{
     }
     //功率状态回调
     void power_state_reciver(HXC_ESPNOW_data_pakage receive_data){
+        log_i("power_state_reciver");
         bool _state = *(bool*)receive_data.data;
         PowerCtrl::state = _state;
         PowerCtrl::is_new_data = true;
     }
     //配对回调
     void paircallback(HXC_ESPNOW_data_pakage receive_data){
-        add_esp_now_peer_mac(receive_data.data);
-        //保存数据到NVS
-        pair_mac=receive_data.data;
+        if(!is_paired){
+            add_esp_now_peer_mac(receive_data.data);
+            //保存数据到NVS
+            pair_mac=receive_data.data;
+            is_paired = true;
+        }
     }
     //接收功率数据回调函数
     void Power_data_callback(HXC_ESPNOW_data_pakage receive_data){
         memcpy(&power_data,receive_data.data,sizeof(Power_data_t));
+        //log_i输出
+        log_i("power_data: %d, %f, %f, %f, %f, %d",power_data.now_state,power_data.voltage,power_data.current,power_data.mah,power_data.mwh,power_data.runtime);
     }
     //发送心跳包
     void send_Heartbeat(int _frc=10,int max_error=3){
@@ -91,6 +98,12 @@ namespace PowerCtrl{
     }
     //初始化
     void setup(){
+        //如果存储的不是广播地址，说明之前已经配对过
+        MAC_t broadcast_mac(0xFF,0xFF,0xFF,0xFF,0xFF,0xFF);
+        MAC_t current_mac = pair_mac;  // 先将pair_mac转换为MAC_t并存储
+        if(memcmp(&current_mac, &broadcast_mac, sizeof(MAC_t)) != 0){
+            is_paired = true;
+        }
         esp_now_setup(pair_mac);
         add_esp_now_callback("Power_state",power_state_reciver);
         add_esp_now_callback("pair",paircallback);

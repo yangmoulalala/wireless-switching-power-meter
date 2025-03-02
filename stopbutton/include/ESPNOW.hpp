@@ -264,8 +264,10 @@ esp_err_t esp_now_send_package(String name,uint8_t* data,int datalen,MAC_t recei
   for(int i=0;i<MAX_RETRY;i++){
     auto err = esp_now_send(receive_MAC,send_data_array,send_data.get_len());
     if (err == ESP_OK)  return ESP_OK;
+    log_e("发送数据包失败");
     delay(20);
   }
+  log_e("发送数据包失败");
   return ESP_FAIL;
 }
 
